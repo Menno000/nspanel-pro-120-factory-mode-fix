@@ -7,12 +7,14 @@ same screen after every 5× power-cycle recovery.
 No firmware image, no flashing tool and no vendor RMA were needed. The panel app was still on the device the whole
 time — it just never got to run.
 
-> **Tested on:** SONOFF NSPanel Pro 120 (NSPanel120P), 480×480, Rockchip PX30 (`px30_evb`), Android 8.1,
-> factory base build `3.4.1`, panel app `com.eWeLinkControlPanel` version `2024081601`.
-> After the repair it OTA'd itself through `4.0.12` → `4.4.0` → `4.9.x`, all without a PC.
+> **Tested on:** SONOFF NSPanel Pro 120 (NSPanel120P), 750×1334 at 240 dpi, Rockchip PX30 (`px30_evb`),
+> Android 8.1, factory base build `3.4.1`, panel app `com.eWeLinkControlPanel` version `2024081601`.
+> After the repair it OTA'd itself through `4.0.12` → `4.4.0` → `4.9.0` (panel app `4.9.3`), all without a PC.
 > The healthy sibling unit in the same house runs firmware `4.8.0`.
 
-![Factory mode screen](images/01-factory-mode.jpg)
+*Screenshots are not committed yet — [`images/README.md`](images/README.md) lists the exact shots this write-up
+expects. The factory screen is easy to recognise: black background, `工厂模式` on top, a QR code, `chipId: …`, and the
+two buttons `产测功能` / `激活设备`.*
 
 ---
 
@@ -160,21 +162,70 @@ No crash, no reboot loop — the panel app simply stays in front and boots into 
 
 1. Complete **Welcome** (language, Wi-Fi — **2.4 GHz only**).
 2. Pair the panel in the **eWeLink app**.
-3. Go to **About → Software Update** (or the app: Device Settings → Firmware Update) and let it update from the
-   factory base (`3.4.1`) to the current release. Tap **Installeren / Install** when it is offered — the download
-   completes on its own, but the install step needs that tap.
+3. Let it update from the factory base (`3.4.1`) to the current release. On `3.4.1` you can still use **About →
+   Software Update**; from `4.x` the panel offers a full-screen *New Firmware Available* dialog a few seconds after
+   boot instead (see below). Tap **Installeren / Install** when it is offered — the download completes on its own,
+   but the install step needs that tap.
 
 If the Chinese factory screen ever comes back after an update, the factory app has been re-enabled. Re-run Step 2 —
 it is a 5 second fix once you know where to look.
 
 > Updates are staged, so expect several rounds: my unit went `3.4.1` → **`4.0.12`** (a ~865 MB OTA applied in recovery)
-> → **`4.4.0`** (applied by recovery on the following boot) → `4.9.x`. Each round is a full reboot into recovery;
-> budget 5–12 minutes per round and do not cut the power.
+> → **`4.4.0`** (applied by recovery on the following boot) → **`4.9.0`** + panel app **`4.9.3`**. Each firmware round
+> is a full reboot into recovery; budget 5–12 minutes per round and do not cut the power.
+
+### Where the update prompt lives in 4.x
+
+In `4.4.0` and later the in-app **About → Software update** page is gone. Tapping **Over** in *Settings* opens the AOSP
+**Settings** app, and the **Advanced Settings** row does not respond at all. What you get instead is a full-screen
+`OtaStrongReminderActivity` — *New Firmware Available, v4.9-493-490-200* with **dicht / Update** — that appears a few
+seconds after boot. That version string means panel app `4.9.3` on top of `4.9.0`.
+
+The dialog is drawn by that activity, and synthetic `adb shell input tap` events were sometimes ignored on it; the tap
+landed on the second attempt and the update ran ~10 seconds later. Do not assume it did nothing.
+
+### Applying a staged update by hand (what the app actually does)
+
+Once the app has downloaded the packages into `/data/data/com.eWeLinkControlPanel/files/ota/`, its recipe can be
+replicated. Check the digest from `plain_config.xml` (`OTA_INFO_ROM`) first:
+
+```bash
+adb root
+adb shell md5sum /data/data/com.eWeLinkControlPanel/files/ota/rom_4.9.0.zip
+# d90844de85fe418e2c402800c76d6d23  rom_4.9.0.zip   <- matches OTA_INFO_ROM.digest
+
+adb shell 'cp /data/data/com.eWeLinkControlPanel/files/ota/rom_4.9.0.zip /data/media/0/update.zip'
+adb shell 'uncrypt /data/media/0/update.zip /cache/recovery/block.map'
+adb shell 'echo --update_package=@/cache/recovery/block.map > /cache/recovery/command'
+adb shell 'echo --locale=en-US >> /cache/recovery/command'
+adb shell 'reboot recovery'
+```
+
+`uncrypt` turns a package that lives on `/data` into a ~90 byte block map, and recovery is started exactly the way the
+app starts it: `--update_package=@/cache/recovery/block.map --locale=en-US` (visible in `/cache/recovery/last_log`).
+For the `4.4.0` → `4.9.0` round (`CK_4.4.0_4.9.0V228-diff.zip`, 196,455,904 bytes, md5 `d90844de…`) `last_install`
+ended with:
+
+```console
+@/cache/recovery/block.map
+1
+time_total: 672
+retry: 0
+target_build: 093351
+source_build: 141952
+bytes_written_system: 1553985536
+bytes_written_vendor: 379752448
+bytes_written_oem: 69906432
+temperature_max: 42900
+```
+
+After the reboot `ro.build.display.id` was `4.9.0`, and the pending app update (`4.9.3`) installed itself on the next
+launch. Unlike the earlier rounds, this one **kept** the default-Home choice.
 
 ### After the update: the Home app is unset again
 
-Every OTA wiped the default-Home choice on my unit, so the panel came back on the `ResolverActivity` chooser. The
-class name also changed in `4.0.12` (from `com.eWeLinkControlPanel.MainActivity` to
+The `4.0.12` and `4.4.0` rounds wiped the default-Home choice on my unit, so the panel came back on the
+`ResolverActivity` chooser. The class name also changed in `4.0.12` (from `com.eWeLinkControlPanel.MainActivity` to
 `com.coolkit.nspanelpro.ui.activity.MainActivity`). Set it again from ADB:
 
 ```bash
@@ -257,7 +308,7 @@ item 7: (empty)
 item 8: (empty)
 
 # after
-item 7: Y 1002abcd12 55a593b6-0000-0000-0000-000000000000 aa:bb:cc:dd:ee:01 aa:bb:cc:dd:ee:02 SN-RK3326S-NSPP-01 228
+item 7: Y 1002abcd12 aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee aa:bb:cc:dd:ee:01 aa:bb:cc:dd:ee:02 SN-RK3326S-NSPP-01 228
 item 8: 24024300000000
 ```
 
@@ -285,6 +336,49 @@ One oddity that turned out to be harmless: the id the panel advertises over mDNS
 the same 10-character id as the licence (`1002abcd12`). Login and OTA both work regardless.
 
 ---
+
+## Step 6 — Turn it into a Home Assistant wall panel (optional)
+
+The panel is a locked-down Android 8.1, so the HA front end is simply a kiosk browser. This is what worked here:
+
+1. Install [Fully Kiosk Browser](https://www.fully-kiosk.com/) — `adb install -r Fully-Kiosk-Browser-v1.61.4.apk`.
+2. **Fully Kiosk does not register a `CATEGORY_HOME` activity**, so `cmd package set-home-activity` cannot select it
+   (`cmd package query-activities -a android.intent.action.MAIN -c android.intent.category.HOME` lists only the panel
+   app and the AOSP fallback). Use the panel app instead: **Apps → Home App → Fully Kiosk Browser**. The panel app then
+   starts it on every Home press and on boot, which also survived a reboot test.
+3. In Fully Kiosk: **Start URL** `http://<ha-host>:8123/?kiosk`, **Launch on Boot** on, **Keep Screen On** on and
+   **Restart Fully After Crash** on. Under *Web Zoom and Scaling* switch **Enable Zoom** and **Use Wide Viewport** off:
+   with both on, the HA dashboard is laid out wider than the 750 px screen and the right-hand cards are cut off.
+4. The panel app's own **Local Web Portal** remains reachable at `http://<panel-ip>/` (port 80, build `4.9.0.5`).
+   Its routes include `/screen`, `/matter`, `/device-management` and `/home-assistant/config`, which is handy when the
+   panel is showing the dashboard and you need to change something.
+
+### Free vs. PLUS
+
+Fully Kiosk's **Kiosk Mode**, **Screensaver**, **Motion Detection** and **Remote Administration** are all PLUS (paid,
+one-time per device). Without it the panel still boots into the dashboard, keeps the screen on and restarts itself
+after a crash — but the Home button can leave the dashboard. Everything below is free.
+
+### Remove what you do not need — this is where the speed is
+
+After two OTAs my unit sat at **load 3.3** on four cores, with three avoidable hogs:
+
+| Package / process | Cost | What it is |
+|---|---|---|
+| `org.fdroid.fdroid` | 161% CPU, 86 MB | Bundled system app at `/oem/bundled_persist-app/F-Droid/F-Droid.apk`. A WorkManager job restarts it to refresh repositories, so `force-stop` does not stick |
+| `com.termux` + `com.termux.boot` | ~115 MB | The panel app installs Termux for its Zigbee "cube" (`bridge-cube` + mosquitto on `127.0.0.1:1884`). Only needed if the panel *is* your Zigbee coordinator |
+| `com.eWeLinkControlPanel:matterbridge` | 35–92 MB | Matter bridge; turn it off in the panel app if you do not use Matter |
+
+```bash
+adb shell pm disable-user --user 0 org.fdroid.fdroid
+adb shell pm disable-user --user 0 com.termux.boot
+adb shell pm disable-user --user 0 com.termux
+```
+
+All of these are reversible with `pm enable` and they survive an OTA. After this the same unit measured **load 0.6–0.8**, no
+ANRs, 348 MB free and a dashboard that reacts immediately. The remaining cost is the WebView rendering the HA
+dashboard (25–40% of one core, it is a card-heavy dashboard with an energy graph) plus the panel app's own cloud/Hue
+sync (~10–15%).
 
 ## What I found on the device (for the curious)
 
@@ -370,6 +464,16 @@ adb shell top -n 1 -m 10 -s 3
 
 Do not tap **Close app** and do not keep rebooting — the app recovers on its own once the CPU frees up.
 
+**`uiautomator dump` fails with "could not get idle state"**
+The panel UI animates almost constantly, so the idle detector never fires. Do not fight it: take a screenshot instead
+(`adb shell screencap -p /sdcard/x.png` + `adb pull`) and read the pixels. `input tap` still works while the dump
+fails.
+
+**`top -m` / `top -o` / `free` are useless for a quick answer**
+On this build `top -m` and `top -o` are not supported, and `free` counts page cache as used. Use
+`ps -A -o PID,NAME,%CPU | sort -k3 -rn | head`, `cat /proc/loadavg`, and `dumpsys meminfo` (the panel app itself
+reports `sysUsedMb` and `appTotalMb` in its own log).
+
 ## What did *not* work
 
 - The **5× power cycle** — restores the factory OTA, back to square one
@@ -380,6 +484,9 @@ Do not tap **Close app** and do not keep rebooting — the app recovers on its o
 - **Looking for a full firmware image** — none is published
 
 ## Photo credits / what goes where
+
+The screenshots are **not in this repository yet** — the table lists exactly what each file should show. Drop them
+into `images/` with these names and `images/README.md` explains the framing and file-size rules.
 
 | File | Should show |
 |---|---|
