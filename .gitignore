@@ -1,0 +1,8 @@
+# logs produced by scripts/find-adb-window.ps1
+scripts/adb-window.log
+*.log
+
+# OS noise
+.DS_Store
+Thumbs.db
+desktop.ini
