@@ -45,7 +45,8 @@ production-test app in the foreground because there is no usable launcher/home a
 
 Every 5× power-cycle boots the recovery partition, and on this model the recovery carries a **full factory OTA**
 (`/smatekback/update.zip`, 687 MB, `system` + `vendor` + `oem` + `boot` + `uboot` + `trust`). Recovery re-applies it,
-so you end up back on the factory build. Infinite loop, and every attempt wipes your data.
+so you end up back on the factory build. On my unit that matched exactly: `/system` carried the same `3.4.1` build
+(2024-08-16) that the `update.zip` contains. Infinite loop, and every attempt wipes your data.
 
 **Do not keep doing the 5× reset.** It is not a repair, it is a factory restore.
 
@@ -59,15 +60,18 @@ production test app:
 /system/app/kz_app/kz_app.apk           -> package com.eWeLinkControlPanel (the real eWeLink panel app, 156 MB)
 ```
 
-Both were installed and working. The panel app was simply never started, because the factory app owned the
-foreground and no HOME activity resolved:
+Both were installed and working. No default HOME app was configured, so the device came up on the factory screen and
+the panel app was never started:
 
 ```console
 $ adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME
 android/com.android.internal.app.ResolverActivity
 ```
 
-So the fix is not flashing. The fix is **disabling the factory app** and **letting the panel app become Home**.
+`ResolverActivity` is the Home chooser — in other words, nothing had been chosen as default.
+
+So the fix is not flashing. The fix is **disabling the factory app**, after which the panel app becomes the only
+sensible Home candidate and starts on the next boot.
 
 ## Requirements
 
