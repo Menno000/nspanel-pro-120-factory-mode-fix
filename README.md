@@ -165,6 +165,107 @@ No crash, no reboot loop — the panel app simply stays in front and boots into 
 If the Chinese factory screen ever comes back after an update, the factory app has been re-enabled. Re-run Step 2 —
 it is a 5 second fix once you know where to look.
 
+> Updates are staged: my unit went `3.4.1` → **`4.0.12`** first (a ~865 MB full OTA, applied in recovery), and
+> `4.8.0` only becomes available after that. Expect more than one update round.
+
+## Step 5 — If it still cannot log in: the missing device licence
+
+Disabling the factory app was only half of the repair on my unit. Afterwards the panel app started, showed the
+**eWeLink login / QR screen**, and then either hung or came back with a `400`. Nothing was wrong with the network,
+DNS, TLS, clock or WebView — the panel simply had **no identity**:
+
+```console
+X-CK-Deviceid: undefined
+model=undefined_undefined
+HTTP 400 {"error":400,"message":"\"x-ck-deviceid\" length must be 10 characters long"}
+```
+
+mDNS advertised the panel as `eWeLink_undefined._ewelink._tcp.local.` instead of `eWeLink_<10 chars>`.
+
+That is the same reason the factory screen said **您的设备未激活!** (*your device is not activated!*): the licence
+was never programmed at the factory. `getDeviceId()` returns `null`, so every request goes out with
+`X-CK-Deviceid: undefined` and the cloud rejects it.
+
+### Where the identity lives
+
+Rockchip keeps it in the raw **vendor storage** partition, `/dev/vendor_storage`, as two items:
+
+| Item | Content |
+|---|---|
+| 7 | licence string, space separated: `Y <licenceid> <uuid> <mac> <mac> <model> <uiid>` |
+| 8 | product id, e.g. `24024300000000` |
+
+| idx in item 7 | field | used as |
+|---|---|---|
+| 0 | `Y` | vendor tag |
+| 1 | licence id (10 chars) | licence id |
+| 2 | UUID | device key |
+| 3 | MAC | secondary MAC |
+| 4 | MAC | primary MAC (chip id) |
+| 5 | `SN-RK3326S-NSPP-01` | model |
+| 6 | `228` | uiid of the NSPanel Pro 120 |
+
+Read and write it through the vendor `libioctrl.so`: `Ioctrl.read(7)`, `Ioctrl.read(8)`, and
+`Ioctrl.write(7, …)` / `Ioctrl.write(8, …)`.
+
+### The easy route: let the factory app provision it
+
+The factory app (`com.eWeLinkNSPro.dev`) still contains the full activation flow. Re-enable it, run its
+`ActiveActivity`, and it asks SONOFF's servers for the licence that belongs to this board and writes it into
+vendor storage itself:
+
+```bash
+adb root
+adb shell chmod 666 /dev/vendor_storage          # Ioctrl.changeMode() normally does this via su
+adb shell pm enable com.eWeLinkNSPro.dev
+adb shell am start -n com.eWeLinkNSPro.dev/.ActiveActivity
+```
+
+Two gotchas I hit:
+
+- **It insists on a Wi-Fi test first.** `connectWifiTask` must succeed before it will talk to the servers. It wants
+  the SSID `sonoff-nsp-pd` with password `094FAFE8` (hard-coded). With `connectWifiTask` skipped it silently does
+  nothing.
+- **`su` does not work from an `adb shell`.** `Ioctrl.changeMode()` runs `su` + `chmod 0666 /dev/vendor_storage`, which
+  fails outside the boot window. Start `ActiveActivity` during the window where `adb root` still applies (see
+  [Step 1](#step-1--find-the-17-second-adb-window-during-boot)), or `chmod` the node yourself first.
+
+When it works the screen shows **设备已激活** (*device activated*) and a QR code, and vendor storage now holds the
+licence:
+
+```console
+# before
+item 7: (empty)
+item 8: (empty)
+
+# after
+item 7: Y 1002abcd12 55a593b6-0000-0000-0000-000000000000 aa:bb:cc:dd:ee:01 aa:bb:cc:dd:ee:02 SN-RK3326S-NSPP-01 228
+item 8: 24024300000000
+```
+
+Then disable the factory app again (Step 2), restart the panel app, and the login works. mDNS now advertises
+`eWeLink_1002ffff99._ewelink._tcp.local.` and `About` shows a real **Device ID** instead of nothing.
+
+### What the factory app actually asks the servers (for reference)
+
+If `ActiveActivity` is not usable, the same data can be fetched by hand. Everything is keyed on the **CPU serial**
+(`ro.serialno` / the chip id on the factory screen), so no invoice or work number is needed:
+
+1. **Look up the work order** (signed request; `appid`, `ts`, `sign`, secret `vhUqCz^nnGTNA77yVcEs!1OZ%XnJ4u&R`):
+   `GET https://snchipidupload-api.coolkit.cn/prod/chipId/SNId_<cpu-serial>?appid=kFHobAQVLZJeakkx&ts=<ms>`
+   → `{"error":0,"data":{"workId":"WW123456"}}`
+2. **Download the licence**:
+   `GET https://test-pdmg.sonoff.co/IdentifierManagement/License/Download?worknumber=WW123456&mac=<cpu-serial>`
+   with `X-CK-Appid: nryla4dw0p6ycmvh87jrsoh8iv47c1wy` and a fixed `Authorization` token
+   → `{"model":"NSPanel120PW","licenseid":"…","licensestring":"Y … 228"}`
+3. **Download the product id**:
+   `POST https://test-pdmg.sonoff.co/IdentifierManagement/ProductId/Download`
+   with `{licenseid, mac, model, worknumber}` → `{"productid":"…"}`
+4. Write both into vendor storage (`Ioctrl.write(7, licensestring)`, then `Ioctrl.write(8, productid)`).
+
+One oddity that turned out to be harmless: the id the panel advertises over mDNS (`eWeLink_1002ffff99`) is **not**
+the same 10-character id as the licence (`1002abcd12`). Login and OTA both work regardless.
+
 ---
 
 ## What I found on the device (for the curious)
