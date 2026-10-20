@@ -21,7 +21,7 @@ Search terms people actually type when they hit this — that is why they are li
 
 - NSPanel Pro 120 shows a **black screen** or **Chinese menu** instead of the eWeLink UI after an update or reboot
 - Screen shows **工厂模式** and **您的设备未激活!**
-- A **QR code** and a line like **chipId: df61b1dea26c37c8**
+- A **QR code** and a line like **chipId: 1a2b3c4d5e6f7890**
 - Two buttons: **产测功能** and **激活设备**
 - Tapping **激活设备** briefly shows a **pairing spinner for ~10 seconds**, then drops back to the same Chinese screen
 - The **5× power cycle** recovery (`unplug at the animated Sonoff logo`) finishes, reboots — and lands on the exact
@@ -99,7 +99,7 @@ Do **not** try to catch it by hand. Use the script in [`scripts/find-adb-window.
 
 ```powershell
 # Windows
-.\scripts\find-adb-window.ps1 -Serial H082012302031505935 -Fix
+.\scripts\find-adb-window.ps1 -Serial <YOUR-SERIAL> -Fix
 ```
 
 Leave it running and power-cycle the panel once (no 5× needed). On my unit the window was open for about 17 seconds.

@@ -30,7 +30,7 @@
     .\find-adb-window.ps1
 
 .EXAMPLE
-    .\find-adb-window.ps1 -Serial H082012302031505935 -Fix -Minutes 15
+    .\find-adb-window.ps1 -Serial H082012302031000000 -Fix -Minutes 15
 #>
 [CmdletBinding()]
 param(
