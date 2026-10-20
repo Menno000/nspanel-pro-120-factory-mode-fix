@@ -354,6 +354,9 @@ The factory app is still enabled, or was restarted. `am force-stop` + `pm disabl
 | `images/04-adb-window.png` | The script catching the device in the boot window |
 | `images/05-welcome.jpg` | The eWeLink Welcome screen after the fix |
 | `images/06-usb-port.jpg` | Where the USB-C port is on the back of the 120 |
+| `images/07-home-chooser.jpg` | The Home chooser with `eWeLinkControlPanel` selected as **Always** |
+| `images/08-about-device-id.jpg` | About page with a real **Device ID** (after the licence repair) |
+| `images/09-activation.jpg` | The factory app showing **设备已激活** (device activated) |
 
 ## Disclaimer
 

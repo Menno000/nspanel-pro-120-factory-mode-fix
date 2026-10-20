@@ -11,6 +11,8 @@ Drop the photos in this folder with exactly these names so the README picks them
 | `05-welcome.jpg` | The eWeLink Welcome screen after the fix | The "after" picture |
 | `06-usb-port.jpg` | Where the USB-C port is on the back of the 120 | People cannot find it |
 | `07-home-chooser.jpg` | The Home app chooser with eWeLinkControlPanel / Launcher | Step 3 |
+| `08-about-device-id.jpg` | About page showing a real **Device ID** (not blank) | Proof the licence landed |
+| `09-activation.jpg` | The factory app after activation: **设备已激活** + QR | Step 5 |
 
 Tips:
 
