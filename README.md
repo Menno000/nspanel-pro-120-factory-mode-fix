@@ -9,6 +9,7 @@ time — it just never got to run.
 
 > **Tested on:** SONOFF NSPanel Pro 120 (NSPanel120P), 480×480, Rockchip PX30 (`px30_evb`), Android 8.1,
 > factory base build `3.4.1`, panel app `com.eWeLinkControlPanel` version `2024081601`.
+> After the repair it OTA'd itself through `4.0.12` → `4.4.0` → `4.9.x`, all without a PC.
 > The healthy sibling unit in the same house runs firmware `4.8.0`.
 
 ![Factory mode screen](images/01-factory-mode.jpg)
@@ -160,13 +161,30 @@ No crash, no reboot loop — the panel app simply stays in front and boots into 
 1. Complete **Welcome** (language, Wi-Fi — **2.4 GHz only**).
 2. Pair the panel in the **eWeLink app**.
 3. Go to **About → Software Update** (or the app: Device Settings → Firmware Update) and let it update from the
-   factory base (`3.4.1`) to the current release (`4.8.0`).
+   factory base (`3.4.1`) to the current release. Tap **Installeren / Install** when it is offered — the download
+   completes on its own, but the install step needs that tap.
 
 If the Chinese factory screen ever comes back after an update, the factory app has been re-enabled. Re-run Step 2 —
 it is a 5 second fix once you know where to look.
 
-> Updates are staged: my unit went `3.4.1` → **`4.0.12`** first (a ~865 MB full OTA, applied in recovery), and
-> `4.8.0` only becomes available after that. Expect more than one update round.
+> Updates are staged, so expect several rounds: my unit went `3.4.1` → **`4.0.12`** (a ~865 MB OTA applied in recovery)
+> → **`4.4.0`** (applied by recovery on the following boot) → `4.9.x`. Each round is a full reboot into recovery;
+> budget 5–12 minutes per round and do not cut the power.
+
+### After the update: the Home app is unset again
+
+Every OTA wiped the default-Home choice on my unit, so the panel came back on the `ResolverActivity` chooser. The
+class name also changed in `4.0.12` (from `com.eWeLinkControlPanel.MainActivity` to
+`com.coolkit.nspanelpro.ui.activity.MainActivity`). Set it again from ADB:
+
+```bash
+adb shell cmd package set-home-activity \
+  com.eWeLinkControlPanel/com.coolkit.nspanelpro.ui.activity.MainActivity
+adb shell input keyevent 3
+```
+
+The `disabled-user` state of the factory app survives the update — no need to re-run Step 2 unless the Chinese
+screen actually appears.
 
 ## Step 5 — If it still cannot log in: the missing device licence
 
@@ -334,6 +352,23 @@ Re-run Step 2. The package may have been re-enabled by the update.
 
 **Panel app opens then drops back to the factory screen**
 The factory app is still enabled, or was restarted. `am force-stop` + `pm disable-user` both, then Home.
+
+**The panel reboots into recovery again after the update and says `system image corrupted, attempting to recover…`**
+Leave it alone. On my unit that was not a failure: recovery was writing the next stage (`last_install` ended with
+`success`, `bytes_written_system: 1557966848`, 12 minutes). When it finishes, `/cache/recovery/command` is gone and
+normal reboots go back to Android. Cutting the power there is the one way to actually brick it.
+
+**`NSPanelPro isn't responding` / `Context.startForegroundService() did not then call Service.startForeground()`**
+That is an ANR from CPU starvation, not corruption. After a big update the panel is busy while it migrates data, and
+anything that keeps the CPU at 100% (on my unit: F-Droid's *Updating repositories*, plus the app's Hue bridge polling)
+pushes the panel app over the 5 second limit. Dismiss with **Wait**, then:
+
+```bash
+adb shell am force-stop org.fdroid.fdroid      # or whichever app is pinning the CPU
+adb shell top -n 1 -m 10 -s 3
+```
+
+Do not tap **Close app** and do not keep rebooting — the app recovers on its own once the CPU frees up.
 
 ## What did *not* work
 
