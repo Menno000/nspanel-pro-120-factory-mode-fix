@@ -141,6 +141,20 @@ is what happened on my unit: it booted straight into the eWeLink **Welcome** scr
 > ([Ultra Small Launcher](https://blakadder.com/nspanel-pro-sideload/), 7 KB) so you always have a usable Android UI:
 > `adb install -r ultra-small-launcher.apk`
 
+### Verified result
+
+Straight from the boot window on my unit, after running the commands above:
+
+```console
+disable factory : Package com.eWeLinkNSPro.dev new state: disabled-user
+disable smatek  : Package com.smatek.test new state: disabled-user
+disabled list   : package:com.eWeLinkNSPro.dev package:com.smatek.test
+foreground      : mResumedActivity: ActivityRecord{... com.eWeLinkControlPanel/.MainActivity t35}
+crash buffer    : (empty)
+```
+
+No crash, no reboot loop — the panel app simply stays in front and boots into its own Welcome flow.
+
 ## Step 4 — Finish setup and update
 
 1. Complete **Welcome** (language, Wi-Fi — **2.4 GHz only**).
